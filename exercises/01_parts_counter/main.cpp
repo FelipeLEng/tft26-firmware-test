@@ -89,8 +89,9 @@ static constexpr uint8_t SENSOR_PORT      = 0;   // Digital input port for senso
 static constexpr uint8_t REG_DISPLAY_LOW  = 6;   // Display register low
 static constexpr uint8_t REG_DISPLAY_HIGH = 7;   // Display register high
 
-static constexpr uint32_t DEBOUNCE_MS      = 60; // Typical debounce for industrial inductive sensors
-static constexpr uint32_t MIN_PULSE_LOW_MS  = 150;   // Minimum LOW pulse duration
+static constexpr uint32_t DEBOUNCE_MS       = 60;       // Typical debounce for industrial inductive sensors
+static constexpr uint32_t MIN_PULSE_LOW_MS  = 150;      // Minimum LOW pulse duration
+static constexpr uint32_t MIN_SPIKE_HIGH_MS = 3;        // Max HIGH spike duration inside a LOW pulse
 
 static constexpr size_t SIGNAL_BUF_SIZE = 256;  // Size of the circular buffer used to store sensor signal samples
 
@@ -188,8 +189,6 @@ void sensor_isr(trac_fw_io_t* io) {
     static uint32_t last_falling_time = 0;  // Start of LOW pulse
     static uint32_t low_duration = 0;       // Accumulated LOW pulse duration
 
-    static constexpr uint32_t MIN_SPIKE_HIGH_MS = 5;  // Max HIGH spike duration inside a LOW pulse
-
     bool raw_state = io->digital_read(SENSOR_PORT);   // Read sensor pin
 
     // Ignore spurious edges using a simple debounce
@@ -208,6 +207,9 @@ void sensor_isr(trac_fw_io_t* io) {
         if (last_falling_time > 0) {
             uint32_t pulse_duration = now - last_falling_time;
 
+            if (pulse_duration < MIN_SPIKE_HIGH_MS) {
+                return;
+            }
             // Ignore HIGH spikes shorter than MIN_SPIKE_HIGH_MS
             if (pulse_duration >= MIN_PULSE_LOW_MS) {
                 Box_count++;   // Valid box detected
